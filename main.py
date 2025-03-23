@@ -1,8 +1,8 @@
 import pygame
 import math
 import time
-from Utils import escalar_imagen, blit_rotar_centro
-
+from Utils import escalar_imagen, blit_rotar_centro, blit_text_center
+pygame.font.init()
 GRASS = escalar_imagen(pygame.image.load("imgs/grass.jpg"), 2.5)
 TRACK = escalar_imagen(pygame.image.load("imgs/track.png"), 0.9)
 TRACK_BORDER = escalar_imagen(pygame.image.load("imgs/track-border.png"), 0.9)
@@ -18,6 +18,7 @@ PURPLE_CAR = escalar_imagen(pygame.image.load("imgs/purple-car.png"), 0.55)
 WIDTH, HEIGHT = TRACK.get_width(), TRACK.get_height()
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Racing game!")
+MAIN_FONT = pygame.font.SysFont("comicsans", 44)
 
 fps = 60
 PATH = [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
@@ -50,7 +51,7 @@ class informacionJuego:
     def getLevelTime(self):
         if not self.iniciado:
             return 0
-        return self.nivel_tiempo_inicio - time.time()
+        return round(time.time() - self.nivel_tiempo_inicio)
 
 
 
@@ -61,9 +62,18 @@ class informacionJuego:
 def dibujar(win, images, JugadorCarro, ComputadoraCarro):
     for img, pos in images:
         win.blit(img, pos)
+    level_text =  MAIN_FONT.render(f"Nivel: {game_info.level}",1,(255,255,255))
+    win.blit(level_text, (10, HEIGHT - level_text.get_height() - 70))
+    time_text = MAIN_FONT.render(f"Tiempo: {round(game_info.getLevelTime(),1)} s", 1, (255, 255, 255))
+    win.blit(time_text, (10, HEIGHT - time_text.get_height() - 40))
+    vel_text = MAIN_FONT.render(f"Velocidad: {round(JugadorCarro.vel,1)} px/s", 1, (255, 255, 255))
+    win.blit(vel_text, (10, HEIGHT - vel_text.get_height() - 10))
     JugadorCarro.dibujar(win)
     ComputadoraCarro.dibujar(win)
     pygame.display.update()
+
+
+
 
 
 
@@ -196,6 +206,11 @@ class Computadora_Caroo(AbstractCar):
         super().move()
 
 
+    def next_level(self, level):
+        self.reseteo()
+        self.vel = self.max_vel + (level-1) * 0.2
+        self.currentPoint = 0
+
 
 
 
@@ -216,32 +231,52 @@ def movimiento_jugador(JugadorCarro):
     if not moviendo:
         JugadorCarro.reducir_velocidad()
 
-def lineaDeMeta(JugadorCarro, ComputadoraCarro):
+def lineaDeMeta(JugadorCarro, ComputadoraCarro, game_info):
     if JugadorCarro.colision(TRACK_BORDER_MASK) != None:
         JugadorCarro.rebotar()
     ColisionComputadora = ComputadoraCarro.colision(FINISH_MASK, *FINISH_POSITION)
     if  ColisionComputadora != None:
         print("Computadora gana")
+
+        blit_text_center(WIN , MAIN_FONT, "Perdiste! ")
+        pygame.display.update()
+        pygame.time.wait(5000)
         JugadorCarro.reseteo()
         ComputadoraCarro.reseteo()
+        game_info.reinicio()
+
 
     ColisionJugador = JugadorCarro.colision(FINISH_MASK, *FINISH_POSITION)
     if  ColisionJugador != None:
         if ColisionJugador[1] == 0:
             JugadorCarro.rebotar()
         else:
+            game_info.siguiente_nivel()
             JugadorCarro.reseteo()
-            ComputadoraCarro.reseteo()
+            ComputadoraCarro.next_level(game_info.level)
             print("Ganaste")
+
+
 
 run = True
 clock = pygame.time.Clock()
 images = [(GRASS, (0, 0)), (TRACK, (0, 0)), (FINISH, FINISH_POSITION), (TRACK_BORDER, (0,0))]
 JugadorCarro = Jugador_Carro(4,4)
-ComputadoraCarro= Computadora_Caroo(4,4, PATH)
+ComputadoraCarro= Computadora_Caroo(2,4, PATH)
+game_info = informacionJuego()
 while run:
     clock.tick(fps)
     dibujar(WIN, images, JugadorCarro, ComputadoraCarro)
+    while not game_info.iniciado:
+        blit_text_center(WIN, MAIN_FONT, f"Presiona cualquier tecla para iniciar el nivel {game_info.level}")
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                break
+            if event.type == pygame.KEYDOWN:
+                game_info.iniciarNivel()
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
@@ -255,11 +290,16 @@ while run:
     movimiento_jugador(JugadorCarro)
     ComputadoraCarro.move()
 
-    lineaDeMeta(JugadorCarro, ComputadoraCarro)
 
 
+    lineaDeMeta(JugadorCarro, ComputadoraCarro, game_info)
 
-
+    if game_info.juego_terminado():
+        blit_text_center(WIN, MAIN_FONT, "Ganaste! ")
+        pygame.time.wait(5000)
+        JugadorCarro.reseteo()
+        ComputadoraCarro.reseteo()
+        game_info.reinicio()
 
 
 #print(ComputadoraCarro.path)
